@@ -96,9 +96,7 @@ bool is_isa_supported(SimdIsa isa) {
         case SimdIsa::AVX2:
             return c.avx2 && c.fma;
         case SimdIsa::AVX_VNNI:
-            // Note: CPUs with AVX512_VNNI + AVX512VL also execute 256-bit VNNI (EVEX-encoded vpdpbusd),
-            // while Alder Lake+ has VEX-encoded AVX_VNNI. We check `c.avx_vnni || (c.avx512_vnni && c.avx512vl)`.
-            return c.avx2 && (c.avx_vnni || (c.avx512_vnni && c.avx512vl));
+            return c.avx2 && c.avx_vnni;
         case SimdIsa::AVX512_VNNI:
             return c.avx512f && c.avx512bw && c.avx512_vnni;
     }

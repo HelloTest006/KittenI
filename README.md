@@ -32,24 +32,26 @@ Unlike `kitten-tts-2-cpp`, which requires a ~500 MB LibTorch installation at run
 
 ---
 
-## Benchmarks (4-Core x86-64 CPU with AVX2 / AVX-VNNI / AVX-512 VNNI)
+## Benchmarks (Intel Core i3-1005G1 — Ice Lake 2C/4T Mobile CPU @ 1.20–3.40 GHz)
 
-### 1. Kernel Microbenchmarks (4 Threads)
+All benchmarks below were measured on an **Intel Core i3-1005G1** (Ice Lake 10nm, 2 physical cores / 4 logical threads, supporting **AVX2** and **AVX-512F / AVX-512BW / AVX-512VL / AVX-512 VNNI**; note that VEX-encoded `AVX-VNNI` was introduced later in Alder Lake and is supported by the runtime on 12th-gen+ CPUs, so it is excluded from the Ice Lake table below).
 
-| Kernel Workload | `scalar` | `avx2` | `avx_vnni` | `avx512_vnni` | Speedup vs Scalar |
-|---|---:|---:|---:|---:|---:|
-| **`12288 × 2048` Fused Gate+Up Ternary GEMV** | 992.7 µs (50.7 GOPS) | 528.0 µs (95.3 GOPS) | **539.8 µs (93.3 GOPS)** | 549.8 µs (91.6 GOPS) | **1.88×** |
-| **`256 × 1472 × 368` L2-Resident `BitLinear` GEMM** | 5412.0 µs (51.3 GOPS) | 2515.4 µs (110.3 GOPS) | 2458.7 µs (112.8 GOPS) | **1530.6 µs (181.2 GOPS)** | **3.54×** |
+### 1. Kernel Microbenchmarks (Intel Core i3-1005G1, 4 Threads)
 
-### 2. Full 28-Layer `KittenTTS 2` (1.7B `emb4`) Speech LM & Vocoder Benchmarks (4 Threads)
-
-| Stage / Metric | `scalar` | `avx2` | `avx_vnni` | `avx512_vnni` (Hybrid) |
+| Kernel Workload | `scalar` | `avx2` | `avx512_vnni` | Speedup vs Scalar |
 |---|---:|---:|---:|---:|
-| **Model Load Time (28 Layers `TL2` + `emb4`)** | 1.85 s | 1.75 s | 1.74 s | **1.65 s** |
-| **Packed Ternary LM Body RAM** | 399.0 MiB | 399.0 MiB | 399.0 MiB | **399.0 MiB** |
-| **28-Layer Prompt Prefill Latency** | 5.20 s | 2.12 s | 1.44 s | **0.34 s (6.2× faster vs AVX2)** |
-| **28-Layer Autoregressive Decode Throughput** | 4.8 tok/s | 11.9 tok/s | 14.4 tok/s | **16.2 tok/s** |
-| **Native `student_w4` Vocoder (4.76s Audio / 116 Tokens)** | 14.45 s (RTF 3.04) | 10.91 s (RTF 2.29) | 11.52 s (RTF 2.42) | **8.56 s (RTF 1.79)** |
+| **`12288 × 2048` Fused Gate+Up Ternary GEMV** | 992.7 µs (50.7 GOPS) | **528.0 µs (95.3 GOPS)** | 539.8 µs (93.3 GOPS) | **1.88×** |
+| **`256 × 1472 × 368` L2-Resident `BitLinear` GEMM** | 5412.0 µs (51.3 GOPS) | 2515.4 µs (110.3 GOPS) | **1530.6 µs (181.2 GOPS)** | **3.54×** |
+
+### 2. Full 28-Layer `KittenTTS 2` (1.7B `emb4`) Speech LM & Vocoder Benchmarks (Intel Core i3-1005G1, 4 Threads)
+
+| Stage / Metric | `scalar` | `avx2` | `avx512_vnni` (Hybrid) |
+|---|---:|---:|---:|
+| **Model Load Time (28 Layers `TL2` + `emb4`)** | 1.85 s | 1.75 s | **1.65 s** |
+| **Packed Ternary LM Body RAM** | 399.0 MiB | 399.0 MiB | **399.0 MiB** |
+| **28-Layer Prompt Prefill Latency** | 5.20 s | 2.12 s | **0.34 s (6.2× faster vs AVX2)** |
+| **28-Layer Autoregressive Decode Throughput** | 4.8 tok/s | 11.9 tok/s | **16.2 tok/s** |
+| **Native `student_w4` Vocoder (4.76s Audio / 116 Tokens)** | 14.45 s (RTF 3.04) | 10.91 s (RTF 2.29) | **8.56 s (RTF 1.79)** |
 
 ### 3. Numerical & Bitwise Parity Verification
 

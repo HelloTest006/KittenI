@@ -178,8 +178,54 @@ inline int32_t dot_group128_u8_avx2(const uint8_t* g_packed32, const uint8_t* gu
 // emits `vpdpbusd ymm, ymm, ymm`, accumulating 4 groups of 32 bytes directly into int32!
 // -----------------------------------------------------------------------------
 #if defined(__GNUC__) || defined(__clang__)
-__attribute__((target("avx2,avx512vl,avx512vnni")))
+__attribute__((target("avx2,avxvnni")))
 inline void gemv_range_avx_vnni(
+    const TernaryMatrix& W,
+    const QuantizedActivation& X_q,
+    int64_t col_begin,
+    int64_t col_end,
+    float* Y
+) {
+    const int64_t groups_per_row = W.num_groups_per_row();
+    const uint8_t* x_row_u8 = X_q.u8_data.data();
+    const float* x_row_scales = X_q.scales.data();
+    const __m256i mask2 = _mm256_set1_epi8(0x03);
+    const __m256i one8 = _mm256_set1_epi8(1);
+
+    for (int64_t out_col = col_begin; out_col < col_end; ++out_col) {
+        const uint8_t* w_row_packed = W.packed_2bit.data() + out_col * groups_per_row * 32;
+        const float* w_row_scales = W.scales.data() + out_col * groups_per_row;
+        const int16_t* w_row_sums = W.group_sums.data() + out_col * groups_per_row;
+        float total = 0.0f;
+
+        for (int64_t g = 0; g < groups_per_row; ++g) {
+            const float sx = x_row_scales[g];
+            if (sx == 0.0f) continue;
+            const uint8_t* gp = w_row_packed + g * 32;
+            const uint8_t* gu = x_row_u8 + g * 128;
+
+            __m256i packed = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(gp));
+            __m256i w0 = _mm256_sub_epi8(_mm256_and_si256(packed, mask2), one8);
+            __m256i w1 = _mm256_sub_epi8(_mm256_and_si256(_mm256_srli_epi16(packed, 2), mask2), one8);
+            __m256i w2 = _mm256_sub_epi8(_mm256_and_si256(_mm256_srli_epi16(packed, 4), mask2), one8);
+            __m256i w3 = _mm256_sub_epi8(_mm256_and_si256(_mm256_srli_epi16(packed, 6), mask2), one8);
+
+            __m256i acc = _mm256_setzero_si256();
+            acc = _mm256_dpbusd_avx_epi32(acc, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(gu + 0)), w0);
+            acc = _mm256_dpbusd_avx_epi32(acc, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(gu + 32)), w1);
+            acc = _mm256_dpbusd_avx_epi32(acc, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(gu + 64)), w2);
+            acc = _mm256_dpbusd_avx_epi32(acc, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(gu + 96)), w3);
+
+            int32_t raw_dot = hsum_epi32_avx2(acc);
+            int32_t unbiased_dot = raw_dot - 128 * static_cast<int32_t>(w_row_sums[g]);
+            total += static_cast<float>(unbiased_dot) * (sx * w_row_scales[g]);
+        }
+        Y[out_col] = total;
+    }
+}
+
+__attribute__((target("avx512f,avx512bw,avx512vl,avx512vnni")))
+inline void gemv_range_avx512vl_vnni(
     const TernaryMatrix& W,
     const QuantizedActivation& X_q,
     int64_t col_begin,
@@ -418,10 +464,10 @@ void ternary_matmul_quantized(
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
         if (isa == SimdIsa::AVX512_VNNI) {
             if (num_rows == 1) {
-                // Single-token decode GEMV is memory-bandwidth bound: 256-bit EVEX/VNNI (`vpdpbusd ymm`)
+                // Single-token decode GEMV is memory-bandwidth bound: 256-bit EVEX AVX512VL+VNNI (`vpdpbusd ymm`)
                 // avoids 512-bit cross-lane shuffles and 512-bit frequency downclocking while matching
                 // exact 128-element group width (4x 32-byte lanes).
-                gemv_range_avx_vnni(W, X_q, col_begin, col_end, Y);
+                gemv_range_avx512vl_vnni(W, X_q, col_begin, col_end, Y);
             } else {
                 // Multi-row prefill GEMM is compute-bound: 4-row unrolled 512-bit `vpdpbusd zmm` is 6x faster!
                 for (int64_t out_col = col_begin; out_col < col_end; ++out_col) {

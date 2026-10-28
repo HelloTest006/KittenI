@@ -45,7 +45,7 @@ inline int32_t dot_u8_i8_avx2(const uint8_t* u8_vec, const int8_t* i8_vec, int64
 }
 
 #if defined(__GNUC__) || defined(__clang__)
-__attribute__((target("avx2,avx512vl,avx512vnni")))
+__attribute__((target("avx2,avxvnni")))
 inline void bitlinear_range_avx_vnni(
     const BitNetWeight& W,
     const uint8_t* x_u8,
@@ -69,7 +69,7 @@ inline void bitlinear_range_avx_vnni(
             for (int64_t i = 0; i < padded_in; i += 32) {
                 __m256i vu = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ur + i));
                 __m256i vi = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w_row + i));
-                acc32 = _mm256_dpbusd_epi32(acc32, vu, vi);
+                acc32 = _mm256_dpbusd_avx_epi32(acc32, vu, vi);
             }
             __m128i lo = _mm256_castsi256_si128(acc32);
             __m128i hi = _mm256_extracti128_si256(acc32, 1);
