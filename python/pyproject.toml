@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kitteni"
+version = "0.5.0"
+description = "KittenI: CPU-Specific Ternary TTS Inference Runtime for KittenTTS 2"
+requires-python = ">=3.9"
+dependencies = ["numpy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kitteni*"]
